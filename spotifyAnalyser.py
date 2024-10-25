@@ -2,6 +2,7 @@ import requests
 import json
 import pandas as pd
 import os
+import tqdm
 
 def authenticate():
     auth_url = 'https://accounts.spotify.com/api/token'
@@ -19,7 +20,7 @@ def get_playlist_items(token, playlist_id):
     get_playlist_items_url = f'https://api.spotify.com/v1/playlists/{playlist_id}/tracks?fields=items(track(name,href,artists(name,href)))'
     playlist_items = requests.get(get_playlist_items_url, headers={'Authorization': f'Bearer {token}'})
     playlist_items_json = playlist_items.json()
-    with open('playlist_items.json', 'w') as f:
+    with open('output/playlist_items.json', 'w') as f:
         f.write(json.dumps(playlist_items_json, indent=4))
     return playlist_items_json
 
@@ -35,18 +36,12 @@ def get_track_audio_features(token, track_href):
     track_audio_features_json = track_audio_features.json()
     return track_audio_features_json
 
-
-
-if __name__ == '__main__':
+def process_spotify_data(playlist_id):
     token = authenticate()
-
-    # Define the playlists
-    playlist_ids = ['4e2Mmg89uWPQbNK6JG3v41','25io3HnI7g9NfkEbI80zSj']
-    playlist_id = playlist_ids[0]
     playlist_items_json = get_playlist_items(token, playlist_id)
 
     # Get the genres of the artists and the audio features of the tracks
-    for item in playlist_items_json['items']:
+    for item in tqdm.tqdm(playlist_items_json['items']):
         genres = []
         for artist in item['track']['artists']:
             artist_genre = get_artist_genre(token, artist['href'])
@@ -54,12 +49,12 @@ if __name__ == '__main__':
         item['track']['genres'] = genres
         track_audio_features = get_track_audio_features(token, item['track']['href'])
         item['track']['audio_features'] = track_audio_features
-    with open('playlist_items_with_extra_info.json', 'w') as f:
+    with open('output/playlist_items_with_extra_info.json', 'w') as f:
         f.write(json.dumps(playlist_items_json, indent=4))
 
     # create dataframe for each track
     track_data = []
-    for item in playlist_items_json['items']:
+    for item in tqdm.tqdm(playlist_items_json['items']):
         track = item['track']
         track_data.append({
             'name': track['name'],
@@ -80,6 +75,12 @@ if __name__ == '__main__':
             'time_signature': track['audio_features']['time_signature'],
         })
     df = pd.DataFrame(track_data)
-    df.to_excel('playlist_tracks.xlsx', index=False)
-    with open('playlist_tracks.json', 'w') as f:
+    df.to_excel('output/playlist_tracks.xlsx', index=False)
+    with open('output/playlist_tracks.json', 'w') as f:
         f.write(json.dumps(playlist_items_json, indent=4))
+
+if __name__ == '__main__':
+    playlist_ids = ['4e2Mmg89uWPQbNK6JG3v41','25io3HnI7g9NfkEbI80zSj']
+    playlist_id = playlist_ids[0]
+
+    process_spotify_data(playlist_id)
